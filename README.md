@@ -10,7 +10,7 @@ keys just to watch a finished course. This plays the ZIP directly in a browser.
 ## Use
 
 ```bash
-cd openmaic-player && python3 -m http.server 4174
+cd opencourse-player && python3 -m http.server 4174
 ```
 
 Open <http://localhost:4174>, then drop a `.maic.zip` on the page.
