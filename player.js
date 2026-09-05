@@ -1,5 +1,5 @@
 /**
- * OpenMAIC Player — plays a `.maic.zip` classroom export with no OpenMAIC install.
+ * OpenCourse — plays a `.maic.zip` classroom export with no OpenMAIC install.
  *
  * The export is a transfer format: OpenMAIC's own docs say it "plays fully
  * offline after import into an air-gapped instance", i.e. it needs the app.

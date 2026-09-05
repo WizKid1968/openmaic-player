@@ -1,4 +1,4 @@
-# OpenMAIC Player
+# OpenCourse
 
 Plays a `.maic.zip` classroom export **without an OpenMAIC install**.
 

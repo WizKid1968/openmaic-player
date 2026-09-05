@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OpenMAIC Player</title>
+<title>OpenCourse</title>
 <style>
  :root{
    color-scheme:dark;
-   --bg:#0b0d13; --panel:#151926; --line:#222839; --ink:#e8eaf0; --dim:#8f97ab; --accent:#7c6cf5;
+   --pl-bg:#0b0d13; --pl-panel:#151926; --pl-line:#222839; --pl-ink:#e8eaf0; --pl-dim:#8f97ab; --pl-accent:#7c6cf5;
  }
  *{box-sizing:border-box}
- body{margin:0;background:var(--bg);color:var(--ink);
+ body{margin:0;background:var(--pl-bg);color:var(--pl-ink);
    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
 
  /* ---- drop screen ---- */
  #drop{position:fixed;inset:0;display:grid;place-content:center;justify-items:center;gap:1rem;
    text-align:center;padding:2rem;border:2px dashed transparent;transition:background .15s}
- #drop.over{background:#141a2e;border-color:var(--accent)}
+ #drop.over{background:#141a2e;border-color:var(--pl-accent)}
  #drop.busy{opacity:.6;pointer-events:none}
  #drop h1{margin:0;font-size:1.9rem;letter-spacing:-.02em}
- #dropText{color:var(--dim);margin:0;max-width:34rem}
+ #dropText{color:var(--pl-dim);margin:0;max-width:34rem}
  .pick{display:inline-block;margin-top:.5rem;padding:.7rem 1.2rem;border-radius:10px;
-   background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+   background:var(--pl-accent);color:#fff;font-weight:600;cursor:pointer}
  #file{display:none}
  .hint{color:#5c6478;font-size:.82rem}
 
@@ -29,10 +29,10 @@
  #app{display:grid;grid-template-columns:260px 1fr;height:100vh}
  /* `display:grid` beats the bare [hidden] UA rule, so restate it. */
  #app[hidden],#drop[hidden]{display:none}
- aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
- aside header{padding:1rem 1.1rem;border-bottom:1px solid var(--line)}
+ aside{background:var(--pl-panel);border-right:1px solid var(--pl-line);display:flex;flex-direction:column;min-height:0}
+ aside header{padding:1rem 1.1rem;border-bottom:1px solid var(--pl-line)}
  #courseTitle{font-weight:650;font-size:1rem;margin:0}
- aside .sub{color:var(--dim);font-size:.78rem;margin:.15rem 0 0}
+ aside .sub{color:var(--pl-dim);font-size:.78rem;margin:.15rem 0 0}
  #scenes{list-style:none;margin:0;padding:.5rem;overflow:auto;flex:1}
  #scenes button{display:flex;gap:.6rem;align-items:center;width:100%;text-align:left;
    padding:.6rem .65rem;border:0;border-radius:9px;background:transparent;color:inherit;
@@ -52,26 +52,26 @@
  /* The app's components size themselves to this box. */
  .scene-host{width:100%;height:100%;position:relative;overflow:hidden;border-radius:12px;
    background:var(--background,#0b0d13);color:var(--foreground,#e8eaf0)}
- .empty{color:var(--dim)}
+ .empty{color:var(--pl-dim)}
  .spotlight{outline:3px solid #ffd54a;outline-offset:4px;border-radius:6px;
    box-shadow:0 0 0 9999px #0007;transition:outline-color .2s}
  .laser{outline:3px solid #ff5c5c;outline-offset:3px;border-radius:6px}
 
  #caption{min-height:3.2rem;margin:0;padding:.8rem 1.25rem;color:#c9d0e0;font-size:.95rem;
-   border-top:1px solid var(--line);background:#10141f}
- #bar{display:flex;gap:.7rem;align-items:center;padding:.7rem 1.25rem;border-top:1px solid var(--line)}
- #bar button{padding:.5rem .9rem;border-radius:9px;border:1px solid var(--line);background:#1b2032;
+   border-top:1px solid var(--pl-line);background:#10141f}
+ #bar{display:flex;gap:.7rem;align-items:center;padding:.7rem 1.25rem;border-top:1px solid var(--pl-line)}
+ #bar button{padding:.5rem .9rem;border-radius:9px;border:1px solid var(--pl-line);background:#1b2032;
    color:inherit;font:inherit;cursor:pointer}
  #bar button:hover{border-color:#39415c}
- #play{background:var(--accent);border-color:var(--accent);font-weight:600;min-width:6.2rem}
- #pos{color:var(--dim);font-size:.83rem;margin-left:auto}
- select{background:#1b2032;color:inherit;border:1px solid var(--line);border-radius:8px;padding:.45rem .5rem}
+ #play{background:var(--pl-accent);border-color:var(--pl-accent);font-weight:600;min-width:6.2rem}
+ #pos{color:var(--pl-dim);font-size:.83rem;margin-left:auto}
+ select{background:#1b2032;color:inherit;border:1px solid var(--pl-line);border-radius:8px;padding:.45rem .5rem}
 </style>
 </head>
 <body>
 
 <div id="drop">
-  <h1>OpenMAIC Player</h1>
+  <h1>OpenCourse</h1>
   <p id="dropText">Drop a <code>.maic.zip</code> classroom export here to play it — teacher narration, slides, and interactive labs, with no OpenMAIC install.</p>
   <label class="pick">Choose a course file<input id="file" type="file" accept=".zip,.maic.zip"></label>
   <p class="hint">Everything runs in this browser. Nothing is uploaded.</p>
@@ -81,7 +81,7 @@
   <aside>
     <header>
       <p id="courseTitle">Course</p>
-      <p class="sub">OpenMAIC Player</p>
+      <p class="sub">OpenCourse</p>
     </header>
     <ul id="scenes"></ul>
   </aside>
