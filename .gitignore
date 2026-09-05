@@ -1,0 +1,14 @@
+# Built artifacts — regenerate with `node build.mjs` and `node package.mjs`.
+vendor/maic-renderer.js
+vendor/maic-app.css
+vendor/maic-fonts.css
+dist/
+
+# Local smoke-test data built from a real course (see make-sample.py).
+sample-course.maic.zip
+
+node_modules/
+.DS_Store
+
+# here.now publish state (contains claim tokens).
+.herenow/

@@ -1,0 +1,8 @@
+{
+  "name": "openmaic-player",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/renderer-entry.jsx --bundle --format=iife --minify --loader:.jsx=jsx --define:process.env.NODE_ENV='\"production\"' --outfile=vendor/maic-renderer.js"
+  }
+}
