@@ -65,6 +65,8 @@
  #bar button:hover{border-color:#39415c}
  #play{background:var(--pl-accent);border-color:var(--pl-accent);font-weight:600;min-width:6.2rem}
  #pos{color:var(--pl-dim);font-size:.83rem;margin-left:auto}
+ #audioNote{margin-left:auto;font-size:.8rem;color:#ffcf6b}
+ #audioNote[hidden]{display:none}
  select{background:#1b2032;color:inherit;border:1px solid var(--pl-line);border-radius:8px;padding:.45rem .5rem}
 </style>
 </head>
@@ -100,6 +102,7 @@
         <option value="1.5">1.5×</option>
         <option value="2">2×</option>
       </select>
+      <span id="audioNote" hidden>Sound blocked — tap Play once more to enable it</span>
       <span id="pos"></span>
     </div>
   </main>

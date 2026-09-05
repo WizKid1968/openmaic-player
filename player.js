@@ -251,25 +251,70 @@ class Player {
     }
   }
 
+  /**
+   * Prime the audio element inside a real user gesture.
+   *
+   * iOS Safari refuses programmatic `play()` unless the element has already
+   * played during a user interaction. Without this the first narration is
+   * rejected, every speech action resolves instantly, and the course races
+   * through in silence — which is exactly what an iPad shows. Playing a short
+   * silent clip on the Play click satisfies the gesture requirement for every
+   * later `play()` on the same element.
+   */
+  unlockAudio() {
+    if (this.audioUnlocked) return;
+    this.audioUnlocked = true;
+    // 0.05s of silence; smaller than any real clip and inaudible either way.
+    this.audio.src =
+      'data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA' +
+      'gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgP/7kMQAAAA' +
+      'AAAAAAAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAnEAgICAgICAgICAgICAgICAgICAgICAgICAgIA=';
+    const attempt = this.audio.play();
+    if (attempt && typeof attempt.then === 'function') {
+      attempt
+        .then(() => {
+          this.audio.pause();
+          this.audio.currentTime = 0;
+        })
+        .catch(() => {
+          // Still blocked (rare). Narration falls back to reading-time pacing,
+          // so the course stays watchable rather than racing.
+          this.audioUnlocked = false;
+        });
+    }
+  }
+
+  /** How long a speech action should hold when its audio cannot play. */
+  readingMs(text) {
+    return Math.min(20000, Math.max(1200, (text.length / READING_CPS) * 1000));
+  }
+
   async speak(action, gen) {
     const text = action.text || '';
     $('#caption').textContent = text;
     const src = this.url(action.audioRef);
     if (!src) {
       // No narration in this export: hold for a readable beat, as the engine does.
-      await sleep(Math.min(20000, Math.max(1200, (text.length / READING_CPS) * 1000)));
+      await sleep(this.readingMs(text));
       return;
     }
-    await new Promise((resolve) => {
-      const done = () => resolve();
-      this.audio.onended = done;
-      this.audio.onerror = done;
+    const played = await new Promise((resolve) => {
+      const done = (ok) => resolve(ok);
+      this.audio.onended = () => done(true);
+      this.audio.onerror = () => done(false);
       this.audio.src = src;
       this.audio.playbackRate = Number($('#speed').value) || 1;
-      this.audio.play().catch(done); // autoplay refusal must not stall the timeline
-      this.cancelAudio = done;
+      this.audio.play().catch(() => done(false));
+      this.cancelAudio = () => done(true); // a deliberate stop is not a failure
     });
     if (gen !== this.generation) return;
+    if (played) $('#audioNote').hidden = true;
+    if (!played) {
+      // Playback was refused or the file failed. Pace by reading time instead of
+      // advancing immediately, so the deck does not fly past in silence.
+      $('#audioNote').hidden = false;
+      await sleep(this.readingMs(text));
+    }
   }
 
   widget(type, payload) {
@@ -360,7 +405,11 @@ $('#drop').addEventListener('drop', (e) => {
   const f = e.dataTransfer.files[0];
   if (f) open(f);
 });
-$('#play').addEventListener('click', () => (player.mode === 'playing' ? player.pause() : player.play()));
+$('#play').addEventListener('click', () => {
+  // Inside the gesture, before any await: iOS only grants audio here.
+  player.unlockAudio();
+  return player.mode === 'playing' ? player.pause() : player.play();
+});
 $('#prev').addEventListener('click', () => player.goto(player.scene - 1));
 $('#next').addEventListener('click', () => player.goto(player.scene + 1));
 $('#speed').addEventListener('change', () => {
