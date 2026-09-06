@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenCourse — audio check</title>
+<style>
+ body{margin:0;padding:1.5rem;background:#0b0d13;color:#e8eaf0;
+   font:16px/1.6 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}
+ h1{font-size:1.3rem;margin:0 0 .2rem}
+ p.sub{color:#8f97ab;margin:.2rem 0 1.2rem;font-size:.9rem}
+ button{width:100%;padding:1rem;margin:.4rem 0;border-radius:12px;border:1px solid #39415c;
+   background:#7c6cf5;color:#fff;font:600 1rem system-ui;cursor:pointer}
+ button.alt{background:#1b2032;color:#e8eaf0}
+ #log{margin-top:1.2rem;padding:1rem;border-radius:12px;background:#11141d;border:1px solid #222839;
+   font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+ .ok{color:#6ee7a8}.bad{color:#ff8080}.note{color:#8f97ab}
+</style>
+</head>
+<body>
+<h1>Audio check</h1>
+<p class="sub">Tap each button once, in order. Then send the log back.</p>
+
+<button id="t1">1 · Bare test — data URL, one tap</button>
+<button id="t2" class="alt">2 · Blob with no MIME type (what the player does)</button>
+<button id="t3" class="alt">3 · Blob with audio/mpeg MIME type</button>
+<button id="t4" class="alt">4 · Real clip from a .maic.zip <input id="zip" type="file" accept=".zip" hidden></button>
+
+<div id="log">Ready.
+</div>
+
+<script>
+const logEl = document.getElementById('log');
+function log(msg, cls) {
+  logEl.insertAdjacentHTML('beforeend',
+    `\n<span class="${cls || 'note'}">${String(msg).replace(/[<&]/g, c => ({'<':'&lt;','&':'&amp;'}[c]))}</span>`);
+}
+log(`UA: ${navigator.userAgent}`);
+
+// One shared element, exactly as the player uses — iOS unlocks the element,
+// not the call, so every test must reuse the same one.
+const audio = new Audio();
+
+/**
+ * Play `src` and report precisely which of the two failure modes occurred:
+ * a rejected play() (the autoplay policy) or a media error (the file could
+ * not be loaded or decoded). The player currently conflates these, which is
+ * why its on-screen notice cannot tell them apart.
+ */
+function tryPlay(label, src, calledInGesture) {
+  log(`\n[${label}] gesture=${calledInGesture} src=${src.slice(0, 40)}…`);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (text, cls) => {
+      if (settled) return;
+      settled = true;
+      log(`[${label}] ${text}`, cls);
+      resolve();
+    };
+    audio.onplaying = () => finish('PLAYING — audio started', 'ok');
+    audio.onerror = () => {
+      const e = audio.error;
+      finish(`MEDIA ERROR code=${e && e.code} ${(e && e.message) || ''} — file could not load/decode`, 'bad');
+    };
+    audio.src = src;
+    const p = audio.play();
+    if (p && p.then) {
+      p.then(() => log(`[${label}] play() promise resolved`))
+       .catch((err) => finish(`play() REJECTED ${err.name}: ${err.message} — blocked by the browser`, 'bad'));
+    } else {
+      log(`[${label}] play() returned no promise (old API)`);
+    }
+    setTimeout(() => finish('timed out with no playing/error event', 'bad'), 4000);
+  });
+}
+
+// 64 samples of silence in a real WAV container, generated and verified.
+const WAV_B64 =
+  'UklGRmQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUAAAACA' +
+  'gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+const DATA_URL = 'data:audio/wav;base64,' + WAV_B64;
+
+function bytesFromB64(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+document.getElementById('t1').addEventListener('click', () => {
+  // Nothing before play() but building the URL — the minimal repro.
+  tryPlay('1 data-url', DATA_URL, true);
+});
+
+document.getElementById('t2').addEventListener('click', () => {
+  // JSZip returns blobs with type "" — this reproduces that exactly.
+  const url = URL.createObjectURL(new Blob([bytesFromB64(WAV_B64)]));
+  tryPlay('2 blob-no-type', url, true);
+});
+
+document.getElementById('t3').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([bytesFromB64(WAV_B64)], { type: 'audio/wav' }));
+  tryPlay('3 blob-typed', url, true);
+});
+
+document.getElementById('t4').addEventListener('click', () => document.getElementById('zip').click());
+document.getElementById('zip').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  log('\nReading zip… (tap button 4 again once it says READY)');
+  const script = document.createElement('script');
+  script.src = 'vendor/jszip.min.js';
+  script.onload = async () => {
+    const zip = await JSZip.loadAsync(file);
+    const name = Object.keys(zip.files).find((n) => /^audio\/.+\.(mp3|wav|m4a|ogg)$/i.test(n));
+    if (!name) return log('No audio/ entry in this zip — the export carries no narration.', 'bad');
+    const blob = await zip.files[name].async('blob');
+    log(`READY: ${name} · blob.type=${JSON.stringify(blob.type)} · ${blob.size} bytes`);
+    window.__clip = { untyped: URL.createObjectURL(blob),
+                      typed: URL.createObjectURL(new Blob([await blob.arrayBuffer()], { type: 'audio/mpeg' })) };
+    document.getElementById('t4').textContent = '4 · Tap to play the real clip (untyped, then typed)';
+    document.getElementById('t4').onclick = async () => {
+      await tryPlay('4a real-untyped', window.__clip.untyped, true);
+      await tryPlay('4b real-typed', window.__clip.typed, true);
+    };
+  };
+  document.head.appendChild(script);
+});
+</script>
+</body>
+</html>

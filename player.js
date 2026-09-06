@@ -315,13 +315,21 @@ class Player {
    */
   startClip(src, alreadyLoaded = false) {
     return new Promise((resolve) => {
-      const done = (ok) => resolve(ok);
+      const done = (ok, why) => {
+        if (why) this.audioFailure = why;
+        resolve(ok);
+      };
       this.audio.onended = () => done(true);
-      this.audio.onerror = () => done(false);
+      this.audio.onerror = () => {
+        // A media error is NOT the autoplay policy: the file could not be
+        // loaded or decoded. Conflating the two hid the real cause on iPad.
+        const e = this.audio.error;
+        done(false, `media error ${e ? e.code : '?'}${e && e.message ? ` — ${e.message}` : ''}`);
+      };
       // Re-assigning src would discard the gesture-granted permission.
       if (!alreadyLoaded) this.audio.src = src;
       this.audio.playbackRate = Number($('#speed').value) || 1;
-      this.audio.play().catch(() => done(false));
+      this.audio.play().catch((err) => done(false, `${err.name}: ${err.message}`));
       this.cancelAudio = () => done(true); // a deliberate stop is not a failure
     });
   }
@@ -351,7 +359,11 @@ class Player {
     if (!played) {
       // Playback was refused or the file failed. Pace by reading time instead of
       // advancing immediately, so the deck does not fly past in silence.
-      $('#audioNote').hidden = false;
+      const note = $('#audioNote');
+      note.textContent = this.audioFailure
+        ? `Sound unavailable (${this.audioFailure}) — playing at reading pace`
+        : 'Sound unavailable — playing at reading pace';
+      note.hidden = false;
       await sleep(this.readingMs(text));
     }
   }

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const dist = resolve(here, 'dist');
 
-const INCLUDE = ['index.html', 'player.js', 'vendor'];
+const INCLUDE = ['index.html', 'player.js', 'audio-check.html', 'vendor'];
 
 async function size(path) {
   const s = await stat(path);
