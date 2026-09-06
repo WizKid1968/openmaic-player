@@ -85,6 +85,7 @@ class Player {
 
   goto(index) {
     this.generation += 1;
+    this.gestureAudio = null;
     this.stopAudio();
     this.scene = Math.max(0, Math.min(index, this.scenes.length - 1));
     this.action = -1;
@@ -120,19 +121,25 @@ class Player {
 
     if (scene.type === 'quiz' && content.questions) {
       window.MaicRenderer.renderQuiz(host, content, sceneId, stageId);
+      this.sceneReady = true;
       this.frameReady = Promise.resolve();
     } else if (scene.type === 'interactive' && (content.html || content.url)) {
       window.MaicRenderer.renderInteractive(host, content, sceneId);
       // The app's renderer builds the iframe; wait for it, then keep a handle
       // so widget actions can be posted into the scene.
-      this.frameReady = this.waitForFrame();
+      this.sceneReady = false;
+      this.frameReady = this.waitForFrame().then(() => {
+        this.sceneReady = true;
+      });
     } else if (content.canvas) {
       this.slideData = content.canvas;
       window.MaicRenderer.renderSlide(host, content.canvas);
+      this.sceneReady = true;
       this.frameReady = Promise.resolve();
     } else {
       host.className = 'empty';
       host.textContent = `This ${scene.type || 'scene'} has no displayable content.`;
+      this.sceneReady = true;
       this.frameReady = Promise.resolve();
     }
     $('#sceneTitle').textContent = scene.title || '';
@@ -210,6 +217,7 @@ class Player {
   pause() {
     this.mode = 'paused';
     this.generation += 1;
+    this.gestureAudio = null;
     this.stopAudio();
     this.status();
   }
@@ -261,27 +269,61 @@ class Player {
    * silent clip on the Play click satisfies the gesture requirement for every
    * later `play()` on the same element.
    */
-  unlockAudio() {
-    if (this.audioUnlocked) return;
-    this.audioUnlocked = true;
-    // 0.05s of silence; smaller than any real clip and inaudible either way.
-    this.audio.src =
-      'data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA' +
-      'gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgP/7kMQAAAA' +
-      'AAAAAAAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAnEAgICAgICAgICAgICAgICAgICAgICAgICAgIA=';
-    const attempt = this.audio.play();
-    if (attempt && typeof attempt.then === 'function') {
-      attempt
-        .then(() => {
-          this.audio.pause();
-          this.audio.currentTime = 0;
-        })
-        .catch(() => {
-          // Still blocked (rare). Narration falls back to reading-time pacing,
-          // so the course stays watchable rather than racing.
-          this.audioUnlocked = false;
-        });
-    }
+  /**
+   * Start the next narration clip synchronously, inside the Play tap.
+   *
+   * iOS only permits audio that a person started, and a gesture does not
+   * survive an `await` — by the time the timeline reaches the first clip the
+   * permission is gone, so playback is refused and the course runs silently.
+   * Starting that clip in the tap itself is not a workaround for the rule; it
+   * is the rule. Every later clip on the same element is then allowed.
+   *
+   * Only runs when the scene is already on screen, so narration can never lead
+   * a slide that has not painted. On desktop this simply starts the same clip a
+   * fraction of a second earlier than the timeline would have.
+   */
+  startFirstSpeechOnGesture() {
+    if (!this.sceneReady || this.mode === 'playing') return;
+    const actions = this.scenes[this.scene]?.actions || [];
+    // Scenes usually open with a visual (spotlight) before the first line, so
+    // look forward for the first narration rather than only the next action.
+    const next = actions.slice(this.action + 1).find((a) => a.type === 'speech');
+    if (!next) return;
+    const src = this.url(next.audioRef);
+    if (!src) return;
+
+    // Start it here — this tap is the only moment iOS grants audio — then hold
+    // it at the start so it is still heard at its own place in the timeline.
+    // Holding is what keeps ordering exact; the permission itself is real,
+    // earned by playing this course's own clip from a real tap.
+    this.audio.src = src;
+    this.audio.playbackRate = Number($('#speed').value) || 1;
+    const started = this.audio
+      .play()
+      .then(() => {
+        this.audio.pause();
+        this.audio.currentTime = 0;
+        return true;
+      })
+      .catch(() => false);
+    this.gestureAudio = { action: next, started };
+  }
+
+  /**
+   * Play `src` on the shared element. Resolves true when it finishes, false if
+   * playback was refused or the file failed — the caller paces accordingly.
+   */
+  startClip(src, alreadyLoaded = false) {
+    return new Promise((resolve) => {
+      const done = (ok) => resolve(ok);
+      this.audio.onended = () => done(true);
+      this.audio.onerror = () => done(false);
+      // Re-assigning src would discard the gesture-granted permission.
+      if (!alreadyLoaded) this.audio.src = src;
+      this.audio.playbackRate = Number($('#speed').value) || 1;
+      this.audio.play().catch(() => done(false));
+      this.cancelAudio = () => done(true); // a deliberate stop is not a failure
+    });
   }
 
   /** How long a speech action should hold when its audio cannot play. */
@@ -298,15 +340,12 @@ class Player {
       await sleep(this.readingMs(text));
       return;
     }
-    const played = await new Promise((resolve) => {
-      const done = (ok) => resolve(ok);
-      this.audio.onended = () => done(true);
-      this.audio.onerror = () => done(false);
-      this.audio.src = src;
-      this.audio.playbackRate = Number($('#speed').value) || 1;
-      this.audio.play().catch(() => done(false));
-      this.cancelAudio = () => done(true); // a deliberate stop is not a failure
-    });
+    // Resume the clip the tap already primed, rather than starting a fresh one
+    // outside the gesture — a fresh start is exactly what iOS refuses.
+    const primed = this.gestureAudio && this.gestureAudio.action === action;
+    if (primed) await this.gestureAudio.started;
+    this.gestureAudio = null;
+    const played = await this.startClip(src, primed);
     if (gen !== this.generation) return;
     if (played) $('#audioNote').hidden = true;
     if (!played) {
@@ -406,8 +445,8 @@ $('#drop').addEventListener('drop', (e) => {
   if (f) open(f);
 });
 $('#play').addEventListener('click', () => {
-  // Inside the gesture, before any await: iOS only grants audio here.
-  player.unlockAudio();
+  // Synchronously, before any await: this is the only moment iOS grants audio.
+  player.startFirstSpeechOnGesture();
   return player.mode === 'playing' ? player.pause() : player.play();
 });
 $('#prev').addEventListener('click', () => player.goto(player.scene - 1));
