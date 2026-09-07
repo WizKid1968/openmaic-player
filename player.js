@@ -27,6 +27,31 @@ const WIDGET_MS = 400; // matches ActionEngine's post-widget settle delay
 const EFFECT_MS = 2000; // spotlight / laser dwell
 const READING_CPS = 14; // fallback pace when a speech action has no audio
 
+/** Extension → MIME, for the typeless blobs a ZIP hands back. */
+const MIME_BY_EXT = {
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  opus: 'audio/ogg',
+  flac: 'audio/flac',
+  webm: 'video/webm',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+};
+function mimeForPath(path) {
+  const ext = /\.([a-z0-9]+)$/i.exec(path)?.[1]?.toLowerCase();
+  return (ext && MIME_BY_EXT[ext]) || '';
+}
+
 const $ = (sel) => document.querySelector(sel);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -57,13 +82,26 @@ class Player {
     this.scenes = (this.manifest.scenes || []).slice().sort((a, b) => a.order - b.order);
   }
 
-  /** Resolve a manifest media ref to a playable URL, lazily. */
+  /**
+   * Resolve a manifest media ref to a playable URL, lazily.
+   *
+   * JSZip returns blobs with `type: ""`. Chrome sniffs the bytes and plays
+   * them; Safari only sniffs formats with an unmistakable header. A WAV
+   * (RIFF) survives, an MP3 does not — `play()` rejects with
+   * `NotSupportedError`, which is a decode refusal, not the autoplay policy.
+   * Declaring the type from the file extension is what makes the blob usable.
+   */
   url(ref) {
     if (!ref) return null;
     const entry = (this.manifest.mediaIndex || {})[ref];
     const path = entry && !entry.missing ? entry.zipPath || ref : ref;
     if (!this.files.has(path)) return null;
-    if (!this.urls.has(path)) this.urls.set(path, URL.createObjectURL(this.files.get(path)));
+    if (!this.urls.has(path)) {
+      const blob = this.files.get(path);
+      const mime = blob.type || entry?.mimeType || mimeForPath(path);
+      const typed = blob.type || !mime ? blob : new Blob([blob], { type: mime });
+      this.urls.set(path, URL.createObjectURL(typed));
+    }
     return this.urls.get(path);
   }
 
